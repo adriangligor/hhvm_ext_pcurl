@@ -90,7 +90,7 @@ The PCURL extension's pool size is at most as large as the `ThreadCount` setting
 
 ### Additional Functions
 
-** pcurl_pool_stats **
+**pcurl_pool_stats**
 
     string pcurl_pool_stats()
 
@@ -106,7 +106,7 @@ Output:
 
     single: free: 7, taken: 2; multi: free: 4, taken: 3
 
-** pcurl_pool_reset **
+**pcurl_pool_reset**
 
     bool pcurl_pool_reset()
 
