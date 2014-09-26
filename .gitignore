@@ -1,0 +1,10 @@
+.DS_Store
+CMakeFiles
+cmake_install.cmake
+CMakeCache.txt
+CMakeLists.txt
+Makefile
+pcurl.so
+
+ext_myexample
+hhvm-dev-nightly.txt
