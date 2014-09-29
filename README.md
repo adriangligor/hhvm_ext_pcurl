@@ -32,7 +32,7 @@ Some of the following steps apply only to Ubuntu, if you use another distributio
 Now the source for the PCURL extension can be compiled:
 
     $ cd ext_pcurl
-    $ cmake . && make
+    $ hphpize && cmake . && make
 
 Install the compiled extension to a directory of your choice, for example:
    
