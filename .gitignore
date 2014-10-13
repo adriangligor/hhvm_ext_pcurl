@@ -6,5 +6,12 @@ CMakeLists.txt
 Makefile
 pcurl.so
 
-ext_myexample
 hhvm-dev-nightly.txt
+
+curl
+ext_myexample
+public_html
+
+ext_pcurl/ext_curl.orig.cpp
+vagrant/.vagrant
+

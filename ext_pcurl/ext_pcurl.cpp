@@ -16,6 +16,7 @@
 */
 
 #include "ext_pcurl.h"
+#include "UriParser.hpp"
 #include "hphp/runtime/base/string-buffer.h"
 #include "hphp/runtime/base/libevent-http-client.h"
 #include "hphp/runtime/base/curl-tls-workarounds.h"
@@ -23,6 +24,7 @@
 #include "hphp/runtime/server/server-stats.h"
 #include "hphp/runtime/vm/jit/translator-inline.h"
 #include <openssl/ssl.h>
+#include <sys/poll.h>
 #include <curl/curl.h>
 #include <curl/easy.h>
 #include <curl/multi.h>
@@ -33,6 +35,7 @@
 #include <fstream>
 #include <deque>
 #include <set>
+#include <thread>
 
 #define CURLOPT_RETURNTRANSFER 19913
 #define CURLOPT_BINARYTRANSFER 19914
@@ -60,77 +63,84 @@ const StaticString
 
 static bool debugInfo = false;
 
-template <typename T>
-class ResourcePool {
+static void log(std::string msg) {
+  // this function is not thread-safe and may lead to crashes!!
+  //if (debugInfo) raise_notice(msg);
+}
+
+class SocketFdPool {
+private:
+  int max;
+  Mutex excl;
+  std::deque<curl_socket_t> pool;
+  std::set<curl_socket_t> taken;
+
 public:
-  ResourcePool(int max) {
-    if (debugInfo) raise_notice("pool: created, max=" + std::to_string(max));
-    this->max = max;
+  explicit SocketFdPool(int max) : max(max) {
+    log("pool: created, max=" + std::to_string(max));
   }
 
-  virtual ~ResourcePool() {
-    if (debugInfo) raise_notice("pool: destroyed");
-    reset();
+  virtual ~SocketFdPool() {
+    log("pool: destroyed");
+    clean();
   }
 
-  T take() {
+  std::pair<curl_socket_t, bool> take(curl_sockaddr *addr, int trial = 1) {
     Lock lock(excl);
 
-    if (pool.size() > 0) {
-      // there is at least one free handle, return it
-      T res = pool.front();
+    curl_socket_t sockfd;
+    if (pool.size() > 0 && trial < 3) {
+      // there is at least one free socket
+      sockfd = pool.front();
       pool.pop_front();
-      taken.insert(res);
-      if (debugInfo) raise_notice("pool: taking free handle - " + stats());
-      return res;
-    } else if (taken.size() == max) {
-      // the maximum amount of handles have been taken, return null
-      if (debugInfo) raise_notice("pool: max handles reached - " + stats());
-      return nullptr;
-    } else {
-      // there is no free handle, but we can create one and return it
-      T res = create();
-      taken.insert(res);
-      if (debugInfo) raise_notice("pool: creating new handle - " + stats());
-      return res;
-    }
-  }
 
-  T duplicate(T original) {
-    Lock lock(excl);
+      if (socketAlive(sockfd)) {
+        // socket is fine, return it
+        taken.insert(sockfd);
+        log("pool: taking existent socket (" + std::to_string(sockfd) +
+          ") - " + stats());
+        return std::make_pair(sockfd, true);
+      }
 
-    if (taken.size() == max) {
-      // the maximum amount of handles have been taken, return null
-      if (debugInfo) raise_notice("pool: max handles reached - " + stats());
-      return nullptr;
+      // this socket is dead, dispose of it, and try another one
+      close(sockfd);
+      return take(addr, trial + 1);
+    } else if (taken.size() < max) {
+      // there is no free socket, but we're allowed to create one and return it
+      sockfd = socket(addr->family, addr->socktype, addr->protocol);
+      if (sockfd != CURL_SOCKET_BAD) taken.insert(sockfd);
+      log("pool: creating new socket (" + std::to_string(sockfd) +
+        ") - " + stats());
+      return std::make_pair(sockfd, false);
     }
 
-    T res = clone(original);
-    taken.insert(res);
-
-    if (debugInfo) raise_notice("pool: duplicated handle");
-    return res;
+    // the maximum amount of sockets have been taken, return error
+    log("pool: max sockets reached - " + stats());
+    return std::make_pair(CURL_SOCKET_BAD, false);
   }
 
-  void putback(T res) {
+  void putback(curl_socket_t sockfd) {
     Lock lock(excl);
 
-    pool.push_back(res);
-    taken.erase(res);
-    if (debugInfo) raise_notice("pool: returned handle - " + stats());
+    pool.push_back(sockfd);
+    taken.erase(sockfd);
+    log("pool: returned socket (" + std::to_string(sockfd) + ") - " + stats());
   }
 
-  bool reset() {
+  bool clean() {
     Lock lock(excl);
 
-    while (pool.size() > 0) {
-      T res = pool.front();
-      destroy(res);
-      pool.pop_front();
+    for (auto it = pool.begin(); it != pool.end(); /* nothing */) {
+      curl_socket_t sockfd = *it;
+      if (!socketAlive(sockfd) && (close(sockfd) >= -1)) { // close always >= -1
+        it = pool.erase(it);
+      } else {
+        ++it;
+      }
     }
 
-    if (debugInfo) raise_notice("pool: reset - " + stats());
-    return (taken.size() == 0); // true if the pool really is empty
+    log("pool: reset - " + stats());
+    return (pool.size() + taken.size() == 0); // true when pool really is empty
   }
 
   std::string stats() {
@@ -138,60 +148,175 @@ public:
       ", taken: " + std::to_string(taken.size());
   }
 
-protected:
-  virtual T create() = 0;
-  virtual void destroy(T res) = 0;
+  std::map<std::string, int> statsMap() {
+    std::map<std::string, int> stats;
 
-  virtual T clone(T original) {
-    if (debugInfo) raise_notice("pool: this function is not implemented");
-    return nullptr;
+    stats["free"] = pool.size();
+    stats["taken"] = taken.size();
+
+    return stats;
   }
 
 private:
+  static bool socketAlive(curl_socket_t sockfd) {
+    struct pollfd pfd;
+    int poll_status;
+
+    pfd.fd = sockfd;
+    pfd.events = POLLRDNORM | POLLIN | POLLRDBAND | POLLPRI; // read tests
+    //pfd.events = POLLWRNORM | POLLOUT; // write tests
+    pfd.revents = 0;
+
+    // the following code issues a poll with timeout 0. it either returns
+    // instantly, because no operation can be done within a 0 timeout,
+    // or returns an error, because the socket is known to be dead
+    do {
+      // do a poll with timeout 0 (no waiting)
+      poll_status = poll(&pfd, 1, 0);
+      if ((poll_status != -1) || (errno && errno != EINTR)) {
+        // the poll wasn't interrupted and returned success or an error
+        break;
+      }
+    } while (poll_status == -1); // loop until a non-interrupted poll
+
+    return (poll_status == 0); // "timeout" means the socket is alive
+  }
+};
+
+class HostSocketFdPool {
+private:
   int max;
+  int cleanupIntervalSec;
   Mutex excl;
-  std::deque<T> pool;
-  std::set<T> taken;
-};
+  std::atomic<bool> doCleanup;
+  std::thread cleanup;
+  std::unordered_map<std::string, std::shared_ptr<SocketFdPool>> pools;
+  std::unordered_map<curl_socket_t, std::shared_ptr<SocketFdPool>> taken;
 
-class PCurlEasyPool : public ResourcePool<CURL *> {
 public:
-  PCurlEasyPool(int max) : ResourcePool(max) {
-    if (debugInfo) raise_notice("pool: created easy pool");
+  explicit HostSocketFdPool(int max, int cleanupIntervalSec) :
+    max(max), cleanupIntervalSec(cleanupIntervalSec), doCleanup(true),
+    cleanup(&HostSocketFdPool::periodicCleanup, this)
+  {
+    log("hpool: created, max=" + std::to_string(max) + ", cleanup=" +
+      std::to_string(cleanupIntervalSec) + "sec");
   }
 
-protected:
-  virtual CURL *create() override {
-    return curl_easy_init();
+  virtual ~HostSocketFdPool() {
+    log("hpool: destroyed");
+    doCleanup = false;
+    clean();
+    cleanup.join();
   }
 
-  virtual CURL *clone(CURL *original) override {
-    return curl_easy_duphandle(original);
+  std::pair<curl_socket_t, bool> take(std::string host, curl_sockaddr *addr) {
+    std::string hostkey = HostSocketFdPool::hostkey(host, &addr->addr);
+    Lock lock(excl);
+
+    if (pools.count(hostkey) == 0) {
+      // create pool for new hostkey
+      pools[hostkey] = std::make_shared<SocketFdPool>(max);
+    }
+
+    std::pair<curl_socket_t, bool> item = pools[hostkey]->take(addr);
+    curl_socket_t sockfd = item.first;
+    taken[sockfd] = pools[hostkey];
+
+    log("hpool: taken socket - " + stats());
+    return item;
   }
 
-  virtual void destroy(CURL *easyh) override {
-    curl_easy_cleanup(easyh);
+  void putback(curl_socket_t sockfd) {
+    Lock lock(excl);
+
+    taken[sockfd]->putback(sockfd);
+    taken.erase(sockfd);
+
+    log("hpool: returned socket - " + stats());
   }
+
+  bool clean() {
+    Lock lock(excl);
+
+    for (auto it = pools.begin(); it != pools.end(); /* nothing */) {
+      auto pool = it->second;
+      if (pool->clean()) {
+        pools.erase(it++);
+      } else {
+        ++it;
+      }
+    }
+
+    log("hpool: reset - " + stats());
+    return (pools.size() + taken.size() == 0); // true when pool really is empty
+  }
+
+  std::string stats() {
+    std::string stats;
+
+    for (auto it = pools.begin(); it != pools.end(); ++it) {
+      auto hostkey = it->first;
+      auto pool = it->second;
+
+      stats += hostkey + ": " + pool->stats() + "; ";
+    }
+
+    return stats;
+  }
+
+  std::map<std::string, std::map<std::string, int>> statsMap() {
+    std::map<std::string, std::map<std::string, int>> stats;
+
+    for (auto it = pools.begin(); it != pools.end(); ++it) {
+      auto hostkey = it->first;
+      auto pool = it->second;
+
+      stats[hostkey] = pool->statsMap();
+    }
+
+    return stats;
+  }
+
+private:
+  static std::string hostkey(std::string host, sockaddr *addr) {
+    in_port_t port;
+    //for ip: char ip[INET6_ADDRSTRLEN] = {0};
+
+    switch (addr->sa_family) {
+      case AF_INET: {
+        sockaddr_in *sin = reinterpret_cast<sockaddr_in*>(addr);
+        port = ntohs(sin->sin_port);
+        //for ip: inet_ntop(AF_INET, &sin->sin_addr, ip, INET6_ADDRSTRLEN);
+        break;
+      }
+
+      case AF_INET6: {
+        sockaddr_in6 *sin = reinterpret_cast<sockaddr_in6*>(addr);
+        port = ntohs(sin->sin6_port);
+        //for ip: inet_ntop(AF_INET6, &sin->sin6_addr, ip, INET6_ADDRSTRLEN);
+        break;
+      }
+
+      default:
+        port = 0;
+    }
+
+    return host + ":" + std::to_string(port);
+  };
+
+  void periodicCleanup() {
+//    log("hpool: cleanup started"); // cannot log in a separate thread??
+    do {
+      std::this_thread::sleep_for(std::chrono::seconds(cleanupIntervalSec));
+//      log("hpool: cleaning up pool");
+      clean();
+//    log("hpool: clean up - " + stats());
+    } while (doCleanup);
+//    log("hpool: cleanup stopped");
+  };
 };
 
-class PCurlMultiPool : public ResourcePool<CURLM *> {
-public:
-  PCurlMultiPool(int max) : ResourcePool(max) {
-    if (debugInfo) raise_notice("pool: created multi pool");
-  }
-
-protected:
-  virtual CURLM *create() override {
-    return curl_multi_init();
-  }
-
-  virtual void destroy(CURLM *multih) override {
-    curl_multi_cleanup(multih);
-  }
-};
-
-static std::shared_ptr<PCurlEasyPool> easyHandlePool;
-static std::shared_ptr<PCurlMultiPool> multiHandlePool;
+static std::shared_ptr<HostSocketFdPool> hostSocketFdPool;
 
 ///////////////////////////////////////////////////////////////////////////////
 // helper data structure
@@ -246,9 +371,9 @@ public:
   virtual const String& o_getClassNameHook() const { return classnameof(); }
 
   explicit PCurlResource(const String& url)
-    : m_exception(nullptr), m_phpException(false), m_emptyPost(true) {
-    //m_cp = curl_easy_init();
-    m_cp = easyHandlePool->take();
+    : m_exception(nullptr), m_phpException(false), m_emptyPost(true),
+      m_oldSock(false) {
+    m_cp = curl_easy_init();
     m_url = url;
 
     memset(m_error_str, 0, sizeof(m_error_str));
@@ -276,12 +401,11 @@ public:
   }
 
   explicit PCurlResource(PCurlResource *src)
-    : m_exception(nullptr), m_phpException(false) {
+    : m_exception(nullptr), m_phpException(false), m_oldSock(false) {
     assert(src && src != this);
     assert(!src->m_exception);
 
-    //m_cp = curl_easy_duphandle(src->get());
-    m_cp = easyHandlePool->duplicate(src->get());
+    m_cp = curl_easy_duphandle(src->get());
     m_url = src->m_url;
 
     memset(m_error_str, 0, sizeof(m_error_str));
@@ -317,8 +441,7 @@ public:
   void closeForSweep() {
     assert(!m_exception);
     if (m_cp) {
-      //curl_easy_cleanup(m_cp);
-      easyHandlePool->putback(m_cp);
+      curl_easy_cleanup(m_cp);
       m_cp = nullptr;
     }
     m_to_free.reset();
@@ -406,6 +529,13 @@ public:
                      minTimeout(RuntimeOption::HttpDefaultTimeout));
     curl_easy_setopt(m_cp, CURLOPT_CONNECTTIMEOUT,
                      minTimeout(RuntimeOption::HttpDefaultTimeout));
+
+    curl_easy_setopt(m_cp, CURLOPT_OPENSOCKETFUNCTION, opensocket_fn);
+    curl_easy_setopt(m_cp, CURLOPT_OPENSOCKETDATA, (void *)this);
+    curl_easy_setopt(m_cp, CURLOPT_SOCKOPTFUNCTION, sockopt_fn);
+    curl_easy_setopt(m_cp, CURLOPT_SOCKOPTDATA, (void *)this);
+    curl_easy_setopt(m_cp, CURLOPT_CLOSESOCKETFUNCTION, closesocket_fn);
+    curl_easy_setopt(m_cp, CURLOPT_CLOSESOCKETDATA, (void *)this);
   }
 
   Variant execute() {
@@ -888,6 +1018,38 @@ public:
     return init_null();
   }
 
+  static curl_socket_t opensocket_fn(void *ctx, curlsocktype purpose,
+                                     curl_sockaddr *addr) {
+    log("curl callback: creating socket");
+
+    PCurlResource *self = static_cast<PCurlResource *>(ctx);
+    std::string url = self->m_url.toCppString();
+    http::url parsedUrl = http::ParseHttpUrl(url);
+    std::string hostn = parsedUrl.host;
+
+    std::pair<curl_socket_t, bool> item = hostSocketFdPool->take(hostn, addr);
+    curl_socket_t sockfd = item.first;
+    self->m_oldSock = item.second;
+
+    return (sockfd == -1 ? CURL_SOCKET_BAD : sockfd);
+  }
+
+  static int sockopt_fn(void *ctx, curl_socket_t sockfd, curlsocktype purpose) {
+    log("curl callback: setting socket options");
+
+    PCurlResource *self = static_cast<PCurlResource *>(ctx);
+
+    return (self->m_oldSock ? CURL_SOCKOPT_ALREADY_CONNECTED : CURL_SOCKOPT_OK);
+  }
+
+  static int closesocket_fn(void *ctx, curl_socket_t sockfd) {
+    log("curl callback: closing socket");
+
+    hostSocketFdPool->putback(sockfd);
+
+    return CURL_SOCKOPT_OK;
+  }
+
   static int curl_progress(void* p,
                            double dltotal, double dlnow,
                            double ultotal, double ulnow) {
@@ -1048,6 +1210,8 @@ private:
 
   bool m_phpException;
   bool m_emptyPost;
+
+  bool m_oldSock;
 
   static CURLcode ssl_ctx_callback(CURL *curl, void *sslctx, void *parm);
 };
@@ -1416,8 +1580,7 @@ public:
   const String& o_getClassNameHook() const { return classnameof(); }
 
   PCurlMultiResource() {
-    //m_multi = curl_multi_init();
-    m_multi = multiHandlePool->take();
+    m_multi = curl_multi_init();
   }
 
   ~PCurlMultiResource() {
@@ -1426,8 +1589,7 @@ public:
 
   void close() {
     if (m_multi) {
-      //curl_multi_cleanup(m_multi);
-      multiHandlePool->putback(m_multi);
+      curl_multi_cleanup(m_multi);
       m_easyh.clear();
       m_multi = nullptr;
     }
@@ -1514,12 +1676,33 @@ void PCurlMultiResource::sweep() {
   }                                                                      \
 
 String HHVM_FUNCTION(pcurl_pool_stats) {
-    return String("single: " + easyHandlePool->stats() +
-      "; multi: " + multiHandlePool->stats());
+  return String("sockets: " + hostSocketFdPool->stats());
+}
+
+Array HHVM_FUNCTION(pcurl_pool_stats_array) {
+  Array ret = Array::Create();
+
+  auto stats = hostSocketFdPool->statsMap();
+  for (auto hostIt = stats.begin(); hostIt != stats.end(); ++hostIt) {
+    auto hostkey = hostIt->first;
+    auto pool = hostIt->second;
+
+    Array retSingle = Array::Create();
+    for (auto it = pool.begin(); it != pool.end(); ++it) {
+      auto state = it->first;
+      auto count = it->second;
+
+      retSingle.set(String(state), count);
+    }
+
+    ret.set(String(hostkey), retSingle);
+  }
+
+  return ret;
 }
 
 bool HHVM_FUNCTION(pcurl_pool_reset) {
-    return easyHandlePool->reset() & multiHandlePool->reset();
+  return hostSocketFdPool->clean();
 }
 
 void HHVM_FUNCTION(pcurl_trace_log, const String& msg) {
@@ -2202,6 +2385,10 @@ const StaticString s_PCURL_VERSION_LIBZ("PCURL_VERSION_LIBZ");
 const StaticString s_PCURL_VERSION_SSL("PCURL_VERSION_SSL");
 
 class PCurlExtension : public Extension {
+private:
+  int threadCount;
+  int cleanupIntervalSec;
+
 public:
   PCurlExtension() : Extension("pcurl") {
   }
@@ -2211,31 +2398,29 @@ public:
     Hdf hdf_server = hdf["Server"];
 
     threadCount = Config::GetInt32(ini, hdf_server["ThreadCount"], 10);
+    cleanupIntervalSec =
+      Config::GetInt32(ini, hdf_pcurl["CleanupIntervalSec"], 60);
     debugInfo = Config::GetBool(ini, hdf_pcurl["PrintDebugInfo"], false);
 
-    if (debugInfo) raise_notice("extension pcurl: created");
+    //log("extension pcurl: created");
   }
 
   virtual void moduleInit() override {
-    easyHandlePool = std::make_shared<PCurlEasyPool>(threadCount);
-    multiHandlePool = std::make_shared<PCurlMultiPool>(threadCount);
+    hostSocketFdPool =
+      std::make_shared<HostSocketFdPool>(threadCount, cleanupIntervalSec);
     registerConstants();
     registerFunctions();
     loadSystemlib();
-    if (debugInfo) raise_notice("extension pcurl: initialized");
+    log("extension pcurl: initialized");
   }
 
   virtual void moduleShutdown() override {
-    easyHandlePool->reset();
-    //delete easyHandlePool;
-    multiHandlePool->reset();
-    //delete multiHandlePool;
-    if (debugInfo) raise_notice("extension pcurl: shut down");
+    hostSocketFdPool->clean();
+    hostSocketFdPool.reset();
+    log("extension pcurl: shut down");
   }
 
 private:
-  int threadCount;
-
   void registerConstants() {
 #if LIBCURL_VERSION_NUM >= 0x071500
     Native::registerConstant<KindOfInt64>(
@@ -2969,6 +3154,7 @@ private:
   void registerFunctions() {
     HHVM_FE(pcurl_pool_reset);
     HHVM_FE(pcurl_pool_stats);
+    HHVM_FE(pcurl_pool_stats_array);
     HHVM_FE(pcurl_trace_log);
     HHVM_FE(pcurl_init);
     HHVM_FE(pcurl_copy_handle);
