@@ -21,6 +21,9 @@
 #include "hphp/runtime/base/libevent-http-client.h"
 #include "hphp/runtime/base/curl-tls-workarounds.h"
 #include "hphp/runtime/base/runtime-option.h"
+#include "hphp/runtime/base/plain-file.h"
+#include "hphp/runtime/base/builtin-functions.h"
+#include "hphp/runtime/base/array-init.h"
 #include "hphp/runtime/server/server-stats.h"
 #include "hphp/runtime/vm/jit/translator-inline.h"
 #include <openssl/ssl.h>
@@ -331,7 +334,7 @@ private:
 
     int                method;
     Variant            callback;
-    SmartResource<File> fp;
+    SmartPtr<File>     fp;
     StringBuffer       buf;
     String             content;
     int                type;
@@ -343,7 +346,7 @@ private:
 
     int                method;
     Variant            callback;
-    SmartResource<File> fp;
+    SmartPtr<File>     fp;
   };
 
   class ToFree {
@@ -737,21 +740,20 @@ public:
         }
 
         Resource obj = value.toResource();
-        if (obj.isNull() || obj.getTyped<File>(true) == nullptr) {
-          return false;
-        }
+	auto fp = obj.getTyped<File>(true);
+	if (!fp) return false;
 
         switch (option) {
           case CURLOPT_FILE:
-            m_write.fp = obj;
+            m_write.fp = fp;
             m_write.method = PHP_CURL_FILE;
             break;
           case CURLOPT_WRITEHEADER:
-            m_write_header.fp = obj;
+            m_write_header.fp = fp;
             m_write_header.method = PHP_CURL_FILE;
             break;
           case CURLOPT_INFILE:
-            m_read.fp = obj;
+            m_read.fp = fp;
             m_emptyPost = false;
             break;
           default: {
@@ -1079,7 +1081,7 @@ public:
     int length = -1;
     switch (t->method) {
     case PHP_CURL_DIRECT:
-      if (!t->fp.isNull()) {
+      if (t->fp) {
         int data_size = size * nmemb;
         String ret = t->fp->read(data_size);
         length = ret.size();
@@ -1092,7 +1094,8 @@ public:
       {
         int data_size = size * nmemb;
         Variant ret = ch->do_callback(
-          t->callback, make_packed_array(Resource(ch), t->fp, data_size));
+		t->callback,
+		make_packed_array(Resource(ch), Resource(t->fp), data_size));
         if (ret.isString()) {
           String sret = ret.toString();
           length = data_size < sret.size() ? data_size : sret.size();
@@ -1303,15 +1306,18 @@ CURLcode PCurlResource::ssl_ctx_callback(CURL *curl, void *sslctx, void *parm) {
 
 Variant HHVM_FUNCTION(pcurl_init, const Variant& url /* = null_string */) {
   if (url.isNull()) {
-    return NEWOBJ(PCurlResource)(null_string);
+//    return NEWOBJ(PCurlResource)(null_string);
+    return newres<PCurlResource>(null_string);
   } else {
-    return NEWOBJ(PCurlResource)(url.toString());
+//    return NEWOBJ(PCurlResource)(url.toString());
+    return newres<PCurlResource>(url.toString());
   }
 }
 
 Variant HHVM_FUNCTION(pcurl_copy_handle, const Resource& ch) {
   CHECK_RESOURCE(curl);
-  return NEWOBJ(PCurlResource)(curl);
+//  return NEWOBJ(PCurlResource)(curl);
+  return newres<PCurlResource>(curl);
 }
 
 const StaticString
@@ -1710,7 +1716,8 @@ void HHVM_FUNCTION(pcurl_trace_log, const String& msg) {
 }
 
 Resource HHVM_FUNCTION(pcurl_multi_init) {
-  return NEWOBJ(PCurlMultiResource)();
+//  return NEWOBJ(PCurlMultiResource)();
+  return newres<PCurlMultiResource>();
 }
 
 Variant HHVM_FUNCTION(pcurl_multi_add_handle, const Resource& mh, const Resource& ch) {
@@ -1802,7 +1809,8 @@ Array curl_convert_fd_to_stream(fd_set *fd, int max_fd) {
   Array ret = Array::Create();
   for (int i=0; i<=max_fd; i++) {
     if (FD_ISSET(i, fd)) {
-      BuiltinFile *file = NEWOBJ(BuiltinFile)(i);
+//      BuiltinFile *file = NEWOBJ(BuiltinFile)(i);
+      BuiltinFile *file = newres<BuiltinFile>(i);
       ret.append(file);
     }
   }
