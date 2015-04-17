@@ -187,3 +187,4 @@ The PCURL extension has been brought to you by the authors of the original [HHVM
 Contributors:
 
 * [Adrian Gligor](https://github.com/adriangligor)
+* [David Spither](https://github.com/dspitzer)
