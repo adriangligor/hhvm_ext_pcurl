@@ -202,7 +202,7 @@ public:
     cleanup(&HostSocketFdPool::periodicCleanup, this)
   {
     //log("hpool: created, max=" + std::to_string(max) + ", cleanup=" +
-      std::to_string(cleanupIntervalSec) + "sec");
+    //  std::to_string(cleanupIntervalSec) + "sec");
   }
 
   virtual ~HostSocketFdPool() {
