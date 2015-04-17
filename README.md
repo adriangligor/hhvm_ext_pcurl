@@ -18,7 +18,7 @@ PCURL applies the same principle to connections used by cURL. It overrides libcu
 
 ## Installation
 
-This extension has been tested with HHVM 3.2 and 3.3 and is confirmed to work.
+This extension has been tested with HHVM 3.2 to 3.6 and is confirmed to work.
 
 [Follow these instructions](https://github.com/facebook/hhvm/wiki/Prebuilt%20Packages%20for%20HHVM) to install **HHVM 3.2+** on your distro of choice. You'll also need the corresponding **development package**, which contains the `hphpize` tool and C++ headers for extension compilation, and should also pull in **GCC 4.8+** and **cmake** automatically.
 
