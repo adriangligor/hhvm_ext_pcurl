@@ -269,7 +269,6 @@ extern const int64_t k_PCURL_VERSION_SSL;
 String HHVM_FUNCTION(pcurl_pool_stats);
 Array HHVM_FUNCTION(pcurl_pool_stats_array);
 bool HHVM_FUNCTION(pcurl_pool_reset);
-void HHVM_FUNCTION(pcurl_trace_log, const String& msg);
 Variant HHVM_FUNCTION(pcurl_init, const Variant& url = null_string);
 Variant HHVM_FUNCTION(pcurl_copy_handle, const Resource& ch);
 Variant HHVM_FUNCTION(pcurl_version, int uversion = k_PCURLVERSION_NOW);

@@ -64,12 +64,8 @@ const StaticString
   s_previous("previous");
 
 
-static bool debugInfo = false;
-
-//static void log(std::string msg) {
-//  // this function is not thread-safe and may lead to crashes!!
-//  if (debugInfo) raise_notice(msg);
-//}
+//#define _LOG(msg) raise_notice(msg) // this function is not thread-safe and may lead to crashes!!
+#define _LOG(msg) do {} while (0)
 
 class SocketFdPool {
 private:
@@ -80,11 +76,11 @@ private:
 
 public:
   explicit SocketFdPool(int max) : max(max) {
-    //log("pool: created, max=" + std::to_string(max));
+    _LOG("pool: created, max=" + std::to_string(max));
   }
 
   virtual ~SocketFdPool() {
-    //log("pool: destroyed");
+    _LOG("pool: destroyed");
     clean();
   }
 
@@ -100,8 +96,8 @@ public:
       if (socketAlive(sockfd)) {
         // socket is fine, return it
         taken.insert(sockfd);
-        //log("pool: taking existent socket (" + std::to_string(sockfd) +
-        //  ") - " + stats());
+        _LOG("pool: taking existent socket (" + std::to_string(sockfd) + \
+          ") - " + stats());
         return std::make_pair(sockfd, true);
       }
 
@@ -112,13 +108,13 @@ public:
       // there is no free socket, but we're allowed to create one and return it
       sockfd = socket(addr->family, addr->socktype, addr->protocol);
       if (sockfd != CURL_SOCKET_BAD) taken.insert(sockfd);
-      //log("pool: creating new socket (" + std::to_string(sockfd) +
-      //  ") - " + stats());
+      _LOG("pool: creating new socket (" + std::to_string(sockfd) + \
+        ") - " + stats());
       return std::make_pair(sockfd, false);
     }
 
     // the maximum amount of sockets have been taken, return error
-    //log("pool: max sockets reached - " + stats());
+    _LOG("pool: max sockets reached - " + stats());
     return std::make_pair(CURL_SOCKET_BAD, false);
   }
 
@@ -127,7 +123,7 @@ public:
 
     pool.push_back(sockfd);
     taken.erase(sockfd);
-    //log("pool: returned socket (" + std::to_string(sockfd) + ") - " + stats());
+    _LOG("pool: returned socket (" + std::to_string(sockfd) + ") - " + stats());
   }
 
   bool clean() {
@@ -142,7 +138,7 @@ public:
       }
     }
 
-    //log("pool: reset - " + stats());
+    _LOG("pool: reset - " + stats());
     return (pool.size() + taken.size() == 0); // true when pool really is empty
   }
 
@@ -201,12 +197,12 @@ public:
     max(max), cleanupIntervalSec(cleanupIntervalSec), doCleanup(true),
     cleanup(&HostSocketFdPool::periodicCleanup, this)
   {
-    //log("hpool: created, max=" + std::to_string(max) + ", cleanup=" +
-    //  std::to_string(cleanupIntervalSec) + "sec");
+    _LOG("hpool: created, max=" + std::to_string(max) + ", cleanup=" +
+      std::to_string(cleanupIntervalSec) + "sec");
   }
 
   virtual ~HostSocketFdPool() {
-    //log("hpool: destroyed");
+    _LOG("hpool: destroyed");
     doCleanup = false;
     clean();
     cleanup.join();
@@ -225,7 +221,7 @@ public:
     curl_socket_t sockfd = item.first;
     taken[sockfd] = pools[hostkey];
 
-    //log("hpool: taken socket - " + stats());
+    _LOG("hpool: taken socket - " + stats());
     return item;
   }
 
@@ -235,7 +231,7 @@ public:
     taken[sockfd]->putback(sockfd);
     taken.erase(sockfd);
 
-    //log("hpool: returned socket - " + stats());
+    _LOG("hpool: returned socket - " + stats());
   }
 
   bool clean() {
@@ -250,7 +246,7 @@ public:
       }
     }
 
-    //log("hpool: reset - " + stats());
+    _LOG("hpool: reset - " + stats());
     return (pools.size() + taken.size() == 0); // true when pool really is empty
   }
 
@@ -308,14 +304,14 @@ private:
   };
 
   void periodicCleanup() {
-//    log("hpool: cleanup started"); // cannot log in a separate thread??
+//    _LOG("hpool: cleanup started"); // cannot log in a separate thread??
     do {
       std::this_thread::sleep_for(std::chrono::seconds(cleanupIntervalSec));
-//      log("hpool: cleaning up pool");
+//      _LOG("hpool: cleaning up pool");
       clean();
-//    log("hpool: clean up - " + stats());
+//    _LOG("hpool: clean up - " + stats());
     } while (doCleanup);
-//    log("hpool: cleanup stopped");
+//    _LOG("hpool: cleanup stopped");
   };
 };
 
@@ -1022,7 +1018,7 @@ public:
 
   static curl_socket_t opensocket_fn(void *ctx, curlsocktype purpose,
                                      curl_sockaddr *addr) {
-    //log("curl callback: creating socket");
+    _LOG("curl callback: creating socket");
 
     PCurlResource *self = static_cast<PCurlResource *>(ctx);
     std::string url = self->m_url.toCppString();
@@ -1037,7 +1033,7 @@ public:
   }
 
   static int sockopt_fn(void *ctx, curl_socket_t sockfd, curlsocktype purpose) {
-    //log("curl callback: setting socket options");
+    _LOG("curl callback: setting socket options");
 
     PCurlResource *self = static_cast<PCurlResource *>(ctx);
 
@@ -1045,7 +1041,7 @@ public:
   }
 
   static int closesocket_fn(void *ctx, curl_socket_t sockfd) {
-    //log("curl callback: closing socket");
+    _LOG("curl callback: closing socket");
 
     hostSocketFdPool->putback(sockfd);
 
@@ -1709,10 +1705,6 @@ Array HHVM_FUNCTION(pcurl_pool_stats_array) {
 
 bool HHVM_FUNCTION(pcurl_pool_reset) {
   return hostSocketFdPool->clean();
-}
-
-void HHVM_FUNCTION(pcurl_trace_log, const String& msg) {
-  if (debugInfo) raise_notice(msg.toCppString());
 }
 
 Resource HHVM_FUNCTION(pcurl_multi_init) {
@@ -2408,9 +2400,8 @@ public:
     threadCount = Config::GetInt32(ini, hdf_server["ThreadCount"], 10);
     cleanupIntervalSec =
       Config::GetInt32(ini, hdf_pcurl["CleanupIntervalSec"], 60);
-    debugInfo = Config::GetBool(ini, hdf_pcurl["PrintDebugInfo"], false);
 
-    //log("extension pcurl: created");
+    _LOG("extension pcurl: created");
   }
 
   virtual void moduleInit() override {
@@ -2419,13 +2410,13 @@ public:
     registerConstants();
     registerFunctions();
     loadSystemlib();
-    //log("extension pcurl: initialized");
+    _LOG("extension pcurl: initialized");
   }
 
   virtual void moduleShutdown() override {
     hostSocketFdPool->clean();
     hostSocketFdPool.reset();
-    //log("extension pcurl: shut down");
+    _LOG("extension pcurl: shut down");
   }
 
 private:
@@ -3163,7 +3154,6 @@ private:
     HHVM_FE(pcurl_pool_reset);
     HHVM_FE(pcurl_pool_stats);
     HHVM_FE(pcurl_pool_stats_array);
-    HHVM_FE(pcurl_trace_log);
     HHVM_FE(pcurl_init);
     HHVM_FE(pcurl_copy_handle);
     HHVM_FE(pcurl_version);
