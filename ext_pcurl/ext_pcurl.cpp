@@ -1057,12 +1057,17 @@ public:
 
     PCurlResource *self = static_cast<PCurlResource *>(ctx);
 
-    // keep-alive settings
-    curl_easy_setopt(self->m_cp, CURLOPT_TCP_KEEPALIVE, 1L);
-    curl_easy_setopt(self->m_cp, CURLOPT_TCP_KEEPIDLE, 10L);
-    curl_easy_setopt(self->m_cp, CURLOPT_TCP_KEEPINTVL, 5L);
+    // check for freshly connected sockets
+    if (!self->m_oldSock) {
+      // keep-alive settings
+      curl_easy_setopt(self->m_cp, CURLOPT_TCP_KEEPALIVE, 1L);
+      curl_easy_setopt(self->m_cp, CURLOPT_TCP_KEEPIDLE, 10L);
+      curl_easy_setopt(self->m_cp, CURLOPT_TCP_KEEPINTVL, 5L);
 
-    return (self->m_oldSock ? CURL_SOCKOPT_ALREADY_CONNECTED : CURL_SOCKOPT_OK);
+      return CURL_SOCKOPT_OK;
+    }
+
+    return CURL_SOCKOPT_ALREADY_CONNECTED;
   }
 
   static int closesocket_fn(void *ctx, curl_socket_t sockfd) {
