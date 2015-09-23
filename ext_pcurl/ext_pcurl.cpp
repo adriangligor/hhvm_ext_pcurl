@@ -422,11 +422,11 @@ private:
  * hold connections open and cache SSL session ids over their lifetimes.
  * All operations on this class are thread safe.
  */
-class CurlHandlePool {
+class PCurlHandlePool {
 public:
-  static std::map<std::string, CurlHandlePool*> namedPools;
+  static std::map<std::string, PCurlHandlePool*> namedPools;
 
-  explicit CurlHandlePool(int poolSize, int waitTimeout, int numConnReuses)
+  explicit PCurlHandlePool(int poolSize, int waitTimeout, int numConnReuses)
   : m_waitTimeout(waitTimeout) {
     for (int i = 0; i < poolSize; i++) {
       m_handleStack.push(new PooledCurlHandle(numConnReuses));
@@ -463,7 +463,7 @@ public:
     pthread_cond_signal(&m_cond);
   }
 
-  ~CurlHandlePool() {
+  ~PCurlHandlePool() {
     Lock lock(m_mutex);
     while (!m_handleStack.empty()) {
       PooledCurlHandle *handle = m_handleStack.top();
@@ -479,7 +479,7 @@ private:
   int m_waitTimeout;
 };
 
-std::map<std::string, CurlHandlePool*> CurlHandlePool::namedPools;
+std::map<std::string, PCurlHandlePool*> PCurlHandlePool::namedPools;
 
 ///////////////////////////////////////////////////////////////////////////////
 // helper data structure
@@ -533,7 +533,7 @@ public:
   // overriding ResourceData
   const String& o_getClassNameHook() const override { return classnameof(); }
 
-  explicit PCurlResource(const String& url, CurlHandlePool *pool = nullptr)
+  explicit PCurlResource(const String& url, PCurlHandlePool *pool = nullptr)
   : m_emptyPost(true), m_connPool(pool), m_pooledHandle(nullptr), 
 m_oldSock(false) {
     if (m_connPool) {
@@ -1299,7 +1299,7 @@ m_oldSock(false) {
 
   static size_t curl_write_header(char *data, size_t size, size_t nmemb,
                                   void *ctx) {
-    CurlResource *ch = (CurlResource *)ctx;
+    PCurlResource *ch = (PCurlResource *)ctx;
     WriteHandler *t  = &ch->m_write_header;
     size_t length = size * nmemb;
 
@@ -1373,7 +1373,7 @@ private:
   Variant      m_progress_callback;
 
   bool m_emptyPost;
-  CurlHandlePool* m_connPool;
+  PCurlHandlePool* m_connPool;
   PooledCurlHandle* m_pooledHandle;
 
   bool m_oldSock;
@@ -1478,17 +1478,17 @@ Variant HHVM_FUNCTION(pcurl_init_pooled,
     const String& poolName,
     const Variant& url /* = null_string */)
 {
-  bool poolExists = (CurlHandlePool::namedPools.find(poolName.toCppString()) !=
-      CurlHandlePool::namedPools.end());
+  bool poolExists = (PCurlHandlePool::namedPools.find(poolName.toCppString()) !=
+      PCurlHandlePool::namedPools.end());
   if (!poolExists) {
     raise_warning("Attempting to use connection pooling without "
                   "specifying an existent connection pool!");
   }
-  CurlHandlePool *pool = poolExists ?
-    CurlHandlePool::namedPools.at(poolName.toCppString()) : nullptr;
+  PCurlHandlePool *pool = poolExists ?
+    PCurlHandlePool::namedPools.at(poolName.toCppString()) : nullptr;
 
-  return url.isNull() ? Variant(req::make<CurlResource>(null_string, pool)) :
-         Variant(req::make<CurlResource>(url.toString(), pool));
+  return url.isNull() ? Variant(req::make<PCurlResource>(null_string, pool)) :
+         Variant(req::make<PCurlResource>(url.toString(), pool));
 }
 
 Variant HHVM_FUNCTION(pcurl_copy_handle, const Resource& ch) {
@@ -1741,7 +1741,7 @@ Variant HHVM_FUNCTION(pcurl_error, const Resource& ch) {
 }
 
 String HHVM_FUNCTION(pcurl_strerror, int code) {
-  return pcurl_easy_strerror((CURLcode)code);
+  return curl_easy_strerror((CURLcode)code);
 }
 
 Variant HHVM_FUNCTION(pcurl_close, const Resource& ch) {
@@ -1844,7 +1844,7 @@ private:
 
 void PCurlMultiResource::sweep() {
   if (m_multi) {
-    pcurl_multi_cleanup(m_multi);
+    curl_multi_cleanup(m_multi);
   }
 }
 
@@ -1965,13 +1965,13 @@ class PCurlEventHandler : public AsioEventHandler {
 
   void handlerReady(uint16_t events) noexcept override;
  private:
-  CurlMultiAwait* m_curlMultiAwait;
+  PCurlMultiAwait* m_curlMultiAwait;
   int m_fd;
 };
 
 class PCurlTimeoutHandler : public AsioTimeoutHandler {
  public:
-  PCurlTimeoutHandler(AsioEventBase* base, CurlMultiAwait* cma):
+  PCurlTimeoutHandler(AsioEventBase* base, PCurlMultiAwait* cma):
     AsioTimeoutHandler(base), m_curlMultiAwait(cma) {}
 
   void timeoutExpired() noexcept override;
@@ -2093,11 +2093,11 @@ void PCurlEventHandler::handlerReady(uint16_t events) noexcept {
   m_curlMultiAwait->setFinished(m_fd);
 }
 
-void CurlTimeoutHandler::timeoutExpired() noexcept {
+void PCurlTimeoutHandler::timeoutExpired() noexcept {
   m_curlMultiAwait->setFinished(-1);
 }
 
-Object HHVM_FUNCTION(curl_multi_await, const Resource& mh,
+Object HHVM_FUNCTION(pcurl_multi_await, const Resource& mh,
                                        double timeout /*=1.0*/) {
   CHECK_MULTI_RESOURCE_THROW(curlm);
   auto ev = new PCurlMultiAwait(curlm, timeout);
@@ -2727,19 +2727,19 @@ const StaticString s_PCURL_VERSION_KERBEROS4("PCURL_VERSION_KERBEROS4");
 const StaticString s_PCURL_VERSION_LIBZ("PCURL_VERSION_LIBZ");
 const StaticString s_PCURL_VERSION_SSL("PCURL_VERSION_SSL");
 
-const StaticString s_CURLPROTO_HTTP("CURLPROTO_HTTP");
-const StaticString s_CURLPROTO_HTTPS("CURLPROTO_HTTPS");
-const StaticString s_CURLPROTO_FTP("CURLPROTO_FTP");
-const StaticString s_CURLPROTO_FTPS("CURLPROTO_FTPS");
-const StaticString s_CURLPROTO_SCP("CURLPROTO_SCP");
-const StaticString s_CURLPROTO_SFTP("CURLPROTO_SFTP");
-const StaticString s_CURLPROTO_TELNET("CURLPROTO_TELNET");
-const StaticString s_CURLPROTO_LDAP("CURLPROTO_LDAP");
-const StaticString s_CURLPROTO_LDAPS("CURLPROTO_LDAPS");
-const StaticString s_CURLPROTO_DICT("CURLPROTO_DICT");
-const StaticString s_CURLPROTO_FILE("CURLPROTO_FILE");
-const StaticString s_CURLPROTO_TFTP("CURLPROTO_TFTP");
-const StaticString s_CURLPROTO_ALL("CURLPROTO_ALL");
+const StaticString s_PCURLPROTO_HTTP("PCURLPROTO_HTTP");
+const StaticString s_PCURLPROTO_HTTPS("PCURLPROTO_HTTPS");
+const StaticString s_PCURLPROTO_FTP("PCURLPROTO_FTP");
+const StaticString s_PCURLPROTO_FTPS("PCURLPROTO_FTPS");
+const StaticString s_PCURLPROTO_SCP("PCURLPROTO_SCP");
+const StaticString s_PCURLPROTO_SFTP("PCURLPROTO_SFTP");
+const StaticString s_PCURLPROTO_TELNET("PCURLPROTO_TELNET");
+const StaticString s_PCURLPROTO_LDAP("PCURLPROTO_LDAP");
+const StaticString s_PCURLPROTO_LDAPS("PCURLPROTO_LDAPS");
+const StaticString s_PCURLPROTO_DICT("PCURLPROTO_DICT");
+const StaticString s_PCURLPROTO_FILE("PCURLPROTO_FILE");
+const StaticString s_PCURLPROTO_TFTP("PCURLPROTO_TFTP");
+const StaticString s_PCURLPROTO_ALL("PCURLPROTO_ALL");
 
 static int s_poolSize, s_reuseLimit, s_getTimeout;
 static std::string s_namedPools;
@@ -2756,16 +2756,16 @@ public:
     Hdf hdf_pcurl = hdf["PCurl"];
     Hdf hdf_server = hdf["Server"];
 
-    threadCount = Config::GetInt32(ini, hdf_server["ThreadCount"], 10);
+    threadCount = Config::GetInt32(ini, hdf_server, "ThreadCount", 10);
     cleanupIntervalSec =
-      Config::GetInt32(ini, hdf_pcurl["CleanupIntervalSec"], 60);
+      Config::GetInt32(ini, hdf_pcurl, "CleanupIntervalSec", 60);
 
     //_LOG("extension pcurl: created");
   }
   void moduleInit() override {hostSocketFdPool =
       std::make_shared<HostSocketFdPool>(threadCount, cleanupIntervalSec);
     registerConstants();
-    registerFunctions();
+    //registerFunctions();
     loadSystemlib();
     //_LOG("extension pcurl: initialized");
   }
@@ -2773,6 +2773,10 @@ public:
   virtual void moduleShutdown() override {
     hostSocketFdPool->clean();
     hostSocketFdPool.reset();
+
+    for (auto const kvItr: PCurlHandlePool::namedPools) {
+      delete kvItr.second;
+    }
     //_LOG("extension pcurl: shut down");
   }
 
@@ -3616,19 +3620,13 @@ private:
         IniSetting::Bind(ext, IniSetting::PHP_INI_SYSTEM, getTimeoutIni,
             "5000", &s_getTimeout);
 
-        CurlHandlePool *hp =
-          new CurlHandlePool(s_poolSize, s_getTimeout, s_reuseLimit);
-        CurlHandlePool::namedPools[poolname] = hp;
+        PCurlHandlePool *hp =
+          new PCurlHandlePool(s_poolSize, s_getTimeout, s_reuseLimit);
+        PCurlHandlePool::namedPools[poolname] = hp;
       }
     }
 
     loadSystemlib();
-  }
-
-  void moduleShutdown() override {
-    for (auto const kvItr: PCurlHandlePool::namedPools) {
-      delete kvItr.second;
-    }
   }
 
 } s_pcurl_extension;
