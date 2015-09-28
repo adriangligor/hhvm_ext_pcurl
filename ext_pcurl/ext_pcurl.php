@@ -3,10 +3,10 @@
 namespace {
 
 <<__Native>>
-function pcurl_pool_stats(): string;
+function pcurl_pool_stats_2(): string;
 
 <<__Native>>
-function pcurl_pool_stats_array(): Array;
+function pcurl_pool_stats_2_array(): Array;
 
 <<__Native>>
 function pcurl_pool_reset(): bool;

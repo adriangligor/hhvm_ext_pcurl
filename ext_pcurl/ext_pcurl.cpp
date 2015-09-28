@@ -1466,11 +1466,11 @@ CURLcode PCurlResource::ssl_ctx_callback(CURL *curl, void *sslctx, void *parm) {
     return;                                                                 \
   }                                                                         \
 
-String HHVM_FUNCTION(pcurl_pool_stats) {
+String HHVM_FUNCTION(pcurl_pool_stats_2) {
   return String("sockets: " + hostSocketFdPool->stats());
 }
 
-Array HHVM_FUNCTION(pcurl_pool_stats_array) {
+Array HHVM_FUNCTION(pcurl_pool_stats_2_array) {
   Array ret = Array::Create();
 
   auto stats = hostSocketFdPool->statsMap();
@@ -3597,8 +3597,8 @@ private:
       s_PCURLPROTO_ALL.get(), k_PCURLPROTO_ALL
     );
 
-    HHVM_FE(pcurl_pool_stats);
-    HHVM_FE(pcurl_pool_stats_array);
+    HHVM_FE(pcurl_pool_stats_2);
+    HHVM_FE(pcurl_pool_stats_2_array);
     HHVM_FE(pcurl_init);
     HHVM_FE(pcurl_init_pooled);
     HHVM_FE(pcurl_copy_handle);
