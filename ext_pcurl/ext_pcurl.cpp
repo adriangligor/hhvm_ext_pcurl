@@ -1903,11 +1903,6 @@ void PCurlMultiResource::sweep() {
   }
 
 Resource HHVM_FUNCTION(pcurl_multi_init) {
-//  return NEWOBJ(PCurlMultiResource)();
-  return newres<PCurlMultiResource>();
-}
-
-Resource HHVM_FUNCTION(pcurl_multi_init) {
   return Resource(req::make<PCurlMultiResource>());
 }
 
