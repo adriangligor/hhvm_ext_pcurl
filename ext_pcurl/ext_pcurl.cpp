@@ -3597,8 +3597,8 @@ private:
       s_PCURLPROTO_ALL.get(), k_PCURLPROTO_ALL
     );
 
-    HHVM_FE(pcurl_pool_stats);
-    HHVM_FE(pcurl_pool_stats_array);
+    //HHVM_FE(pcurl_pool_stats);
+    //HHVM_FE(pcurl_pool_stats_array);
     HHVM_FE(pcurl_init);
     HHVM_FE(pcurl_init_pooled);
     HHVM_FE(pcurl_copy_handle);
