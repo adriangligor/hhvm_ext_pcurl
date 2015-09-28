@@ -1496,11 +1496,6 @@ bool HHVM_FUNCTION(pcurl_pool_reset) {
   return hostSocketFdPool->clean();
 }
 
-Resource HHVM_FUNCTION(pcurl_multi_init) {
-//  return NEWOBJ(PCurlMultiResource)();
-  return newres<PCurlMultiResource>();
-}
-
 Variant HHVM_FUNCTION(pcurl_init, const Variant& url /* = null_string */) {
   if (url.isNull()) {
     return Variant(req::make<PCurlResource>(null_string));
@@ -1906,6 +1901,11 @@ void PCurlMultiResource::sweep() {
   if (!curlm || curlm->isInvalid()) {                                   \
     SystemLib::throwExceptionObject(CURLM_ARG_WARNING);                 \
   }
+
+Resource HHVM_FUNCTION(pcurl_multi_init) {
+//  return NEWOBJ(PCurlMultiResource)();
+  return newres<PCurlMultiResource>();
+}
 
 Resource HHVM_FUNCTION(pcurl_multi_init) {
   return Resource(req::make<PCurlMultiResource>());
