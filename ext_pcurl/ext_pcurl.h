@@ -269,8 +269,8 @@ extern const int64_t k_PCURL_VERSION_KERBEROS4;
 extern const int64_t k_PCURL_VERSION_LIBZ;
 extern const int64_t k_PCURL_VERSION_SSL;
 
-String HHVM_FUNCTION(pcurl_pool_stats_2);
-Array HHVM_FUNCTION(pcurl_pool_stats_2_array);
+//String HHVM_FUNCTION(pcurl_pool_stats);
+//Array HHVM_FUNCTION(pcurl_pool_stats_array);
 bool HHVM_FUNCTION(pcurl_pool_reset);
 Variant HHVM_FUNCTION(pcurl_init, const Variant& url = null_string);
 Variant HHVM_FUNCTION(pcurl_init_pooled, const String& poolName,
