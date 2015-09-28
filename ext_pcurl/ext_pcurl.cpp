@@ -1466,6 +1466,41 @@ CURLcode PCurlResource::ssl_ctx_callback(CURL *curl, void *sslctx, void *parm) {
     return;                                                                 \
   }                                                                         \
 
+String HHVM_FUNCTION(pcurl_pool_stats) {
+  return String("sockets: " + hostSocketFdPool->stats());
+}
+
+Array HHVM_FUNCTION(pcurl_pool_stats_array) {
+  Array ret = Array::Create();
+
+  auto stats = hostSocketFdPool->statsMap();
+  for (auto hostIt = stats.begin(); hostIt != stats.end(); ++hostIt) {
+    auto hostkey = hostIt->first;
+    auto pool = hostIt->second;
+
+    Array retSingle = Array::Create();
+    for (auto it = pool.begin(); it != pool.end(); ++it) {
+      auto state = it->first;
+      auto count = it->second;
+
+      retSingle.set(String(state), count);
+    }
+
+    ret.set(String(hostkey), retSingle);
+  }
+
+  return ret;
+}
+
+bool HHVM_FUNCTION(pcurl_pool_reset) {
+  return hostSocketFdPool->clean();
+}
+
+Resource HHVM_FUNCTION(pcurl_multi_init) {
+//  return NEWOBJ(PCurlMultiResource)();
+  return newres<PCurlMultiResource>();
+}
+
 Variant HHVM_FUNCTION(pcurl_init, const Variant& url /* = null_string */) {
   if (url.isNull()) {
     return Variant(req::make<PCurlResource>(null_string));
@@ -3567,6 +3602,8 @@ private:
       s_PCURLPROTO_ALL.get(), k_PCURLPROTO_ALL
     );
 
+    HHVM_FE(pcurl_pool_stats);
+    HHVM_FE(pcurl_pool_stats_array);
     HHVM_FE(pcurl_init);
     HHVM_FE(pcurl_init_pooled);
     HHVM_FE(pcurl_copy_handle);
