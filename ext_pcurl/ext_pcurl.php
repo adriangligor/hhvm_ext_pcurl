@@ -347,51 +347,51 @@ namespace {
 
 namespace HH\Asio {
 
-/**
- * Wind a pcurl handle through an awaitable loop to fetch the result
- *
- * @param mixed $urlOrHandle - An existing cURL handle or a URL as a string.
- *                           - String URLs will create a default cURL GET
- * @return Awaitable<string> - Awaitable handle yielding a string
- */
-async function pcurl_exec(mixed $urlOrHandle): Awaitable<string> {
-  if (is_string($urlOrHandle)) {
-    $ch = pcurl_init($urlOrHandle);
-  } else if (is_resource($urlOrHandle) &&
-             (get_resource_type($urlOrHandle) == "pcurl")) {
-    $ch = $urlOrHandle;
-  } else {
-    throw new Exception(__FUNCTION__." expects string of cURL handle");
-  }
-  pcurl_setopt($ch, PCURLOPT_RETURNTRANSFER, true);
-
-  $mh = pcurl_multi_init();
-  pcurl_multi_add_handle($mh, $ch);
-  $sleep_ms = 10;
-  do {
-    $active = 1;
-    do {
-      $status = pcurl_multi_exec($mh, $active);
-    } while ($status == PCURLM_CALL_MULTI_PERFORM);
-    if (!$active) break;
-    $select = await pcurl_multi_await($mh);
-    /* If cURL is built without ares support, DNS queries don't have a socket
-     * to wait on, so pcurl_multi_await() (and pcurl_select() in PHP5) will return
-     * -1, and polling is required.
-     */
-    if ($select == -1) {
-      await SleepWaitHandle::create($sleep_ms * 1000);
-      if ($sleep_ms < 1000) {
-        $sleep_ms *= 2;
-      }
-    } else {
-      $sleep_ms = 10;
-    }
-  } while ($status === PCURLM_OK);
-  $content = (string)pcurl_multi_getcontent($ch);
-  pcurl_multi_remove_handle($mh, $ch);
-  pcurl_multi_close($mh);
-  return $content;
-}
+///**
+// * Wind a pcurl handle through an awaitable loop to fetch the result
+// *
+// * @param mixed $urlOrHandle - An existing cURL handle or a URL as a string.
+// *                           - String URLs will create a default cURL GET
+// * @return Awaitable<string> - Awaitable handle yielding a string
+// */
+//async function pcurl_exec(mixed $urlOrHandle): Awaitable<string> {
+//  if (is_string($urlOrHandle)) {
+//    $ch = pcurl_init($urlOrHandle);
+//  } else if (is_resource($urlOrHandle) &&
+//             (get_resource_type($urlOrHandle) == "pcurl")) {
+//    $ch = $urlOrHandle;
+//  } else {
+//    throw new Exception(__FUNCTION__." expects string of cURL handle");
+//  }
+//  pcurl_setopt($ch, PCURLOPT_RETURNTRANSFER, true);
+//
+//  $mh = pcurl_multi_init();
+//  pcurl_multi_add_handle($mh, $ch);
+//  $sleep_ms = 10;
+//  do {
+//    $active = 1;
+//    do {
+//      $status = pcurl_multi_exec($mh, $active);
+//    } while ($status == PCURLM_CALL_MULTI_PERFORM);
+//    if (!$active) break;
+//    $select = await pcurl_multi_await($mh);
+//    /* If cURL is built without ares support, DNS queries don't have a socket
+//     * to wait on, so pcurl_multi_await() (and pcurl_select() in PHP5) will return
+//     * -1, and polling is required.
+//     */
+//    if ($select == -1) {
+//      await SleepWaitHandle::create($sleep_ms * 1000);
+//      if ($sleep_ms < 1000) {
+//        $sleep_ms *= 2;
+//      }
+//    } else {
+//      $sleep_ms = 10;
+//    }
+//  } while ($status === PCURLM_OK);
+//  $content = (string)pcurl_multi_getcontent($ch);
+//  pcurl_multi_remove_handle($mh, $ch);
+//  pcurl_multi_close($mh);
+//  return $content;
+//}
 
 } // namespace HH\Asio
