@@ -1,13 +1,2 @@
-HHVM_DEFINE_EXTENSION("pcurl"
-  SOURCES
-    ext_pcurl.cpp
-  HEADERS
-    ext_pcurl.h
-  SYSTEMLIB
-    ext_pcurl.php
-  DEPENDS
-    libBoost
-    libCurl
-    libFolly
-    libOpenSSL
-)
+HHVM_EXTENSION(pcurl ext_pcurl.cpp)
+HHVM_SYSTEMLIB(pcurl ext_pcurl.php)
