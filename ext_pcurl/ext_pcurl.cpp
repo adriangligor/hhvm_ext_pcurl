@@ -2427,14 +2427,14 @@ class PCurlExtension final : public Extension {
       s_PCURLINFO_LOCAL_PORT.get(), k_PCURLINFO_LOCAL_PORT
     );
 #endif
-#if LIBCURL_VERSION_NUM >= 0x071002
+/*#if LIBCURL_VERSION_NUM >= 0x071002
     Native::registerConstant<KindOfInt64>(
       s_PCURLOPT_TIMEOUT_MS.get(), k_PCURLOPT_TIMEOUT_MS
     );
     Native::registerConstant<KindOfInt64>(
       s_PCURLOPT_CONNECTTIMEOUT_MS.get(), k_PCURLOPT_CONNECTTIMEOUT_MS
     );
-#endif
+#endif*/
     Native::registerConstant<KindOfInt64>(
       s_PCURLAUTH_ANY.get(), k_PCURLAUTH_ANY
     );
