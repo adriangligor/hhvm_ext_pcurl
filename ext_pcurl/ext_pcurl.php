@@ -2,15 +2,6 @@
 
 namespace {
 
-<<__Native>>
-function pcurl_pool_stats(): string;
-
-<<__Native>>
-function pcurl_pool_stats_array(): Array;
-
-<<__Native>>
-function pcurl_pool_reset(): bool;
-
 /**
  * Close a cURL session
  *
@@ -68,7 +59,7 @@ function pcurl_strerror(int $errno): string;
  *
  * @param resource $ch -
  *
- * @return mixed - However, if the PCURLOPT_RETURNTRANSFER option is set,
+ * @return mixed - However, if the CURLOPT_RETURNTRANSFER option is set,
  *   it will return the result on success, FALSE on failure.
  */
 <<__Native>>
@@ -79,31 +70,31 @@ function pcurl_exec(resource $ch): mixed;
  *
  * @param resource $ch -
  * @param int $opt - This may be one of the following constants:
- *   PCURLINFO_EFFECTIVE_URL - Last effective URL     PCURLINFO_HTTP_CODE -
- *   Last received HTTP code     PCURLINFO_FILETIME - Remote time of the
+ *   CURLINFO_EFFECTIVE_URL - Last effective URL     CURLINFO_HTTP_CODE -
+ *   Last received HTTP code     CURLINFO_FILETIME - Remote time of the
  *   retrieved document, if -1 is returned the time of the document is
- *   unknown     PCURLINFO_TOTAL_TIME - Total transaction time in seconds
- *   for last transfer     PCURLINFO_NAMELOOKUP_TIME - Time in seconds until
- *   name resolving was complete     PCURLINFO_CONNECT_TIME - Time in
+ *   unknown     CURLINFO_TOTAL_TIME - Total transaction time in seconds
+ *   for last transfer     CURLINFO_NAMELOOKUP_TIME - Time in seconds until
+ *   name resolving was complete     CURLINFO_CONNECT_TIME - Time in
  *   seconds it took to establish the connection
- *   PCURLINFO_PRETRANSFER_TIME - Time in seconds from start until just
- *   before file transfer begins     PCURLINFO_STARTTRANSFER_TIME - Time in
+ *   CURLINFO_PRETRANSFER_TIME - Time in seconds from start until just
+ *   before file transfer begins     CURLINFO_STARTTRANSFER_TIME - Time in
  *   seconds until the first byte is about to be transferred
- *   PCURLINFO_REDIRECT_COUNT - Number of redirects
- *   PCURLINFO_REDIRECT_TIME - Time in seconds of all redirection steps
- *   before final transaction was started     PCURLINFO_SIZE_UPLOAD - Total
- *   number of bytes uploaded     PCURLINFO_SIZE_DOWNLOAD - Total number of
- *   bytes downloaded     PCURLINFO_SPEED_DOWNLOAD - Average download speed
- *      PCURLINFO_SPEED_UPLOAD - Average upload speed
- *   PCURLINFO_HEADER_SIZE - Total size of all headers received
- *   PCURLINFO_HEADER_OUT - The request string sent. For this to work, add
- *   the PCURLINFO_HEADER_OUT option to the handle by calling pcurl_setopt()
- *      PCURLINFO_REQUEST_SIZE - Total size of issued requests, currently
- *   only for HTTP requests     PCURLINFO_SSL_VERIFYRESULT - Result of SSL
- *   certification verification requested by setting PCURLOPT_SSL_VERIFYPEER
- *       PCURLINFO_CONTENT_LENGTH_DOWNLOAD - content-length of download,
- *   read from Content-Length: field     PCURLINFO_CONTENT_LENGTH_UPLOAD -
- *   Specified size of upload     PCURLINFO_CONTENT_TYPE - Content-Type: of
+ *   CURLINFO_REDIRECT_COUNT - Number of redirects
+ *   CURLINFO_REDIRECT_TIME - Time in seconds of all redirection steps
+ *   before final transaction was started     CURLINFO_SIZE_UPLOAD - Total
+ *   number of bytes uploaded     CURLINFO_SIZE_DOWNLOAD - Total number of
+ *   bytes downloaded     CURLINFO_SPEED_DOWNLOAD - Average download speed
+ *      CURLINFO_SPEED_UPLOAD - Average upload speed
+ *   CURLINFO_HEADER_SIZE - Total size of all headers received
+ *   CURLINFO_HEADER_OUT - The request string sent. For this to work, add
+ *   the CURLINFO_HEADER_OUT option to the handle by calling pcurl_setopt()
+ *      CURLINFO_REQUEST_SIZE - Total size of issued requests, currently
+ *   only for HTTP requests     CURLINFO_SSL_VERIFYRESULT - Result of SSL
+ *   certification verification requested by setting CURLOPT_SSL_VERIFYPEER
+ *       CURLINFO_CONTENT_LENGTH_DOWNLOAD - content-length of download,
+ *   read from Content-Length: field     CURLINFO_CONTENT_LENGTH_UPLOAD -
+ *   Specified size of upload     CURLINFO_CONTENT_TYPE - Content-Type: of
  *   the requested document, NULL indicates server did not send valid
  *   Content-Type: header
  *
@@ -117,7 +108,7 @@ function pcurl_exec(resource $ch): mixed;
  *   "speed_upload"     "download_content_length"
  *   "upload_content_length"     "starttransfer_time"     "redirect_time"
  *     "certinfo"     "request_header" (This is only set if the
- *   PCURLINFO_HEADER_OUT is set by a previous call to pcurl_setopt())
+ *   CURLINFO_HEADER_OUT is set by a previous call to pcurl_setopt())
  */
 <<__Native>>
 function pcurl_getinfo(resource $ch,
@@ -126,7 +117,7 @@ function pcurl_getinfo(resource $ch,
 /**
  * Initialize a cURL session
  *
- * @param string $url - If provided, the PCURLOPT_URL option will be set
+ * @param string $url - If provided, the CURLOPT_URL option will be set
  *   to its value. You can manually set this using the pcurl_setopt()
  *   function.    The file protocol is disabled by cURL if open_basedir is
  *   set.
@@ -145,7 +136,7 @@ function pcurl_init(?string $url = null): mixed;
  * @param string $poolName - The name of the connection pool to use.
  *  Named connection pools are initialized via the 'pcurl.namedPools' ini
  *  setting, which is a comma separated list of named pools to create.
- * @param string $url - If provided, the PCURLOPT_URL option will be set
+ * @param string $url - If provided, the CURLOPT_URL option will be set
  *   to its value. You can manually set this using the pcurl_setopt()
  *   function.    The file protocol is disabled by cURL if open_basedir is
  *   set.
@@ -161,7 +152,7 @@ function pcurl_init_pooled(string $poolName, ?string $url = null): mixed;
  * @param resource $mh -
  * @param resource $ch -
  *
- * @return int - Returns 0 on success, or one of the PCURLM_XXX errors
+ * @return int - Returns 0 on success, or one of the CURLM_XXX errors
  *   code.
  */
 <<__Native>>
@@ -188,7 +179,7 @@ function pcurl_multi_close(resource $mh): mixed;
  * @return int - A cURL code defined in the cURL Predefined Constants.
  *   This only returns errors regarding the whole multi stack. There might
  *   still have occurred problems on individual transfers even when this
- *   function returns PCURLM_OK.
+ *   function returns CURLM_OK.
  */
 <<__Native>>
 function pcurl_multi_exec(resource $mh,
@@ -200,7 +191,7 @@ function pcurl_multi_exec(resource $mh,
  * @param resource $ch -
  *
  * @return string - Return the content of a cURL handle if
- *   PCURLOPT_RETURNTRANSFER is set.
+ *   CURLOPT_RETURNTRANSFER is set.
  */
 <<__Native>>
 function pcurl_multi_getcontent(resource $ch): ?string;
@@ -214,9 +205,9 @@ function pcurl_multi_getcontent(resource $ch): ?string;
  *
  * @return array - On success, returns an associative array for the
  *   message, FALSE on failure.    Contents of the returned array    Key:
- *   Value:     msg The PCURLMSG_DONE constant. Other return values are
- *   currently not available.   result One of the PCURLE_* constants. If
- *   everything is OK, the PCURLE_OK will be the result.   handle Resource
+ *   Value:     msg The CURLMSG_DONE constant. Other return values are
+ *   currently not available.   result One of the CURLE_* constants. If
+ *   everything is OK, the CURLE_OK will be the result.   handle Resource
  *   of type pcurl indicates the handle which it concerns.
  */
 <<__Native>>
@@ -238,7 +229,7 @@ function pcurl_multi_init(): resource;
  * @param resource $mh -
  * @param resource $ch -
  *
- * @return int - Returns 0 on success, or one of the PCURLM_XXX error
+ * @return int - Returns 0 on success, or one of the CURLM_XXX error
  *   codes.
  */
 <<__Native>>
@@ -283,7 +274,7 @@ function pcurl_setopt_array(resource $ch,
  * Set an option for a cURL transfer
  *
  * @param resource $ch -
- * @param int $option - The PCURLOPT_XXX option to set.
+ * @param int $option - The CURLOPT_XXX option to set.
  * @param mixed $value - The value to be set on option.
  *
  * @return bool -
@@ -304,11 +295,11 @@ function pcurl_setopt(resource $ch,
  *   ssl_version_number OpenSSL 24 bit version number   ssl_version OpenSSL
  *   version number, as a string   libz_version zlib version number, as a
  *   string   host Information about the host where cURL was built   age
- *   features A bitmask of the PCURL_VERSION_XXX constants   protocols An
+ *   features A bitmask of the CURL_VERSION_XXX constants   protocols An
  *   array of protocols names supported by cURL
  */
 <<__Native>>
-function pcurl_version(int $age = PCURLVERSION_NOW): mixed;
+function pcurl_version(int $age = CURLVERSION_NOW): mixed;
 
 <<__Native>>
 function pcurl_reset(resource $ch): void;
@@ -317,7 +308,7 @@ function pcurl_reset(resource $ch): void;
  * Gets options on the given cURL session handle.
  *
  * @param resource $ch - A cURL handle returned by pcurl_init().
- * @param int $opt     - This should be one of the PCURLOPT_* values.
+ * @param int $opt     - This should be one of the CURLOPT_* values.
  *
  * @return mixed - If opt is given, returns its value. Otherwise, returns an
  *    associative array.
@@ -336,7 +327,7 @@ function fb_pcurl_getopt(resource $ch, int $opt = 0): mixed;
  * @param int& $max_fd         - If no file descriptors are set, $max_fd will
  *     contain -1. Otherwise it will contain the higher descriptor number.
  *
- * @return mixed - Returns 0 on success, or one of the PCURLM_XXX errors code.
+ * @return mixed - Returns 0 on success, or one of the CURLM_XXX errors code.
  */
 <<__Native, __HipHopSpecific>>
 function fb_pcurl_multi_fdset(resource $mh, mixed &$read_fd_set,
@@ -363,7 +354,7 @@ async function pcurl_exec(mixed $urlOrHandle): Awaitable<string> {
   } else {
     throw new Exception(__FUNCTION__." expects string of cURL handle");
   }
-  pcurl_setopt($ch, PCURLOPT_RETURNTRANSFER, true);
+  pcurl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
 
   $mh = pcurl_multi_init();
   pcurl_multi_add_handle($mh, $ch);
@@ -372,7 +363,7 @@ async function pcurl_exec(mixed $urlOrHandle): Awaitable<string> {
     $active = 1;
     do {
       $status = pcurl_multi_exec($mh, $active);
-    } while ($status == PCURLM_CALL_MULTI_PERFORM);
+    } while ($status == CURLM_CALL_MULTI_PERFORM);
     if (!$active) break;
     $select = await pcurl_multi_await($mh);
     /* If cURL is built without ares support, DNS queries don't have a socket
@@ -387,7 +378,7 @@ async function pcurl_exec(mixed $urlOrHandle): Awaitable<string> {
     } else {
       $sleep_ms = 10;
     }
-  } while ($status === PCURLM_OK);
+  } while ($status === CURLM_OK);
   $content = (string)pcurl_multi_getcontent($ch);
   pcurl_multi_remove_handle($mh, $ch);
   pcurl_multi_close($mh);
