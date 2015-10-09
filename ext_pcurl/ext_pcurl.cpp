@@ -1424,7 +1424,7 @@ Variant HHVM_FUNCTION(pcurl_close, const Resource& ch) {
   return init_null();
 }
 
-void HHVM_FUNCTION(curl_reset, const Resource& ch) {
+void HHVM_FUNCTION(pcurl_reset, const Resource& ch) {
   CHECK_RESOURCE_RETURN_VOID(curl);
   curl->reset();
 }
