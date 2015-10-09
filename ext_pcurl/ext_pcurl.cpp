@@ -123,7 +123,7 @@ public:
     }
   }
 
-  ~PooledCurlHandle() {
+  ~PooledPCurlHandle() {
     if (m_handle != nullptr) {
       curl_easy_cleanup(m_handle);
     }
@@ -3275,6 +3275,6 @@ class PCurlExtension final : public Extension {
     }
   }
 
-} s_curl_extension;
+} s_pcurl_extension;
 
 }
