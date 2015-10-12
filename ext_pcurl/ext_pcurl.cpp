@@ -3613,7 +3613,7 @@ class PCurlExtension final : public Extension {
     Native::registerConstant<KindOfInt64>(
       s_PCURLPROTO_ALL.get(), k_PCURLPROTO_ALL
     );
-std::cout << "FUNCTIONS GET LOADED NOW" << std::endl;
+
     HHVM_FE(pcurl_init);
     HHVM_FE(pcurl_init_pooled);
     HHVM_FE(pcurl_copy_handle);
@@ -3689,6 +3689,6 @@ std::cout << "FUNCTIONS GET LOADED NOW" << std::endl;
 
 } s_pcurl_extension;
 
-HHVM_GET_MODULE(pcurl);
+//HHVM_GET_MODULE(pcurl);
 
 }

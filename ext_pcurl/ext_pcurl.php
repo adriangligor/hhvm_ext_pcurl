@@ -2,6 +2,15 @@
 
 namespace {
 
+<<__Native>>
+function pcurl_pool_stats(): string;
+
+<<__Native>>
+function pcurl_pool_stats_array(): Array;
+
+<<__Native>>
+function pcurl_pool_reset(): bool;
+
 /**
  * Close a cURL session
  *
