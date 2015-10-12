@@ -2811,9 +2811,9 @@ class PCurlExtension final : public Extension {
     Hdf hdf_pcurl = hdf["PCurl"];
     Hdf hdf_server = hdf["Server"];
 
-    threadCount = Config::GetInt32(ini, hdf_server["ThreadCount"], 10);
+    threadCount = Config::GetInt32(ini, hdf, "ThreadCount", 10, false);
     cleanupIntervalSec =
-      Config::GetInt32(ini, hdf_pcurl["CleanupIntervalSec"], 60);
+      Config::GetInt32(ini, hdf, "CleanupIntervalSec", 60, false);
 
     //_LOG("extension pcurl: created");
   }
@@ -2823,8 +2823,8 @@ class PCurlExtension final : public Extension {
     /* CUSTOM_START */
     hostSocketFdPool =
       std::make_shared<HostSocketFdPool>(threadCount, cleanupIntervalSec);
-    registerConstants();
-    registerFunctions();
+    //registerConstants();
+    //registerFunctions();
     loadSystemlib();
     //_LOG("extension pcurl: initialized");
     /* CUSTOM_END */
