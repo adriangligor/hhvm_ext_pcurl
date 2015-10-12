@@ -3277,4 +3277,6 @@ class PCurlExtension final : public Extension {
 
 } s_pcurl_extension;
 
+HHVM_GET_MODULE(pcurl);
+
 }
