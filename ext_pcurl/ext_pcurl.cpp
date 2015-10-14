@@ -2799,8 +2799,8 @@ static std::string s_namedPools;
 class PCurlExtension final : public Extension {
   /* CUSTOM_START */
   private:
-    int threadCount;
-    int cleanupIntervalSec;
+    int threadCount = 10;
+    int cleanupIntervalSec = 60;
   /* CUSTOM_END */
 
  public:
@@ -2808,12 +2808,12 @@ class PCurlExtension final : public Extension {
 
   /* CUSTOM_START */
   virtual void moduleLoad(const IniSetting::Map& ini, Hdf hdf) {
-    Hdf hdf_pcurl = hdf["PCurl"];
-    Hdf hdf_server = hdf["Server"];
+    //Hdf hdf_pcurl = hdf["PCurl"];
+    //Hdf hdf_server = hdf["Server"];
 
-    threadCount = Config::GetInt32(ini, hdf, "ThreadCount", 10, false);
-    cleanupIntervalSec =
-      Config::GetInt32(ini, hdf, "CleanupIntervalSec", 60, false);
+    //threadCount = Config::GetInt32(ini, hdf, "ThreadCount", 10, false);
+    //cleanupIntervalSec =
+    //  Config::GetInt32(ini, hdf, "CleanupIntervalSec", 60, false);
 
     //_LOG("extension pcurl: created");
   }
@@ -3689,6 +3689,6 @@ class PCurlExtension final : public Extension {
 
 } s_pcurl_extension;
 
-//HHVM_GET_MODULE(pcurl);
+HHVM_GET_MODULE(pcurl);
 
 }
