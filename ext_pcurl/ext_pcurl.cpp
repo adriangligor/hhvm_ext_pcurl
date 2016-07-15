@@ -2520,8 +2520,8 @@ const int64_t k_PCURLPROTO_ALL = CURLPROTO_ALL;
 const StaticString s_PCURLINFO_LOCAL_PORT("PCURLINFO_LOCAL_PORT");
 #endif
 #if LIBCURL_VERSION_NUM >= 0x071002
-const StaticString s_CURLOPT_TIMEOUT_MS("CURLOPT_TIMEOUT_MS");
-const StaticString s_CURLOPT_CONNECTTIMEOUT_MS("CURLOPT_CONNECTTIMEOUT_MS");
+const StaticString s_PCURLOPT_TIMEOUT_MS("PCURLOPT_TIMEOUT_MS");
+const StaticString s_PCURLOPT_CONNECTTIMEOUT_MS("PCURLOPT_CONNECTTIMEOUT_MS");
 #endif
 const StaticString s_PCURLAUTH_ANY("PCURLAUTH_ANY");
 const StaticString s_PCURLAUTH_ANYSAFE("PCURLAUTH_ANYSAFE");
@@ -2834,14 +2834,14 @@ class PCurlExtension final : public Extension {
       s_PCURLINFO_LOCAL_PORT.get(), k_PCURLINFO_LOCAL_PORT
     );
 #endif
-/*#if LIBCURL_VERSION_NUM >= 0x071002
+#if LIBCURL_VERSION_NUM >= 0x071002
     Native::registerConstant<KindOfInt64>(
       s_PCURLOPT_TIMEOUT_MS.get(), k_PCURLOPT_TIMEOUT_MS
     );
     Native::registerConstant<KindOfInt64>(
       s_PCURLOPT_CONNECTTIMEOUT_MS.get(), k_PCURLOPT_CONNECTTIMEOUT_MS
     );
-#endif*/
+#endif
     Native::registerConstant<KindOfInt64>(
       s_PCURLAUTH_ANY.get(), k_PCURLAUTH_ANY
     );
