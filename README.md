@@ -1,3 +1,5 @@
+# This project is deprecated! As the HHVM project evolves, the effort to keep PCURL in sync with their code has proven to be too high. At the same time our internal use-case has disappeared by rewriting critical parts of our software in a more appropriate language than PHP. This project will not be updated, the last supported HHVM version will stay 3.9.
+
 # PCURL - HHVM persistent cURL
 
 PCURL is an extension for [HHVM](https://github.com/facebook/hhvm) that mirrors the default cURL extension but allows TCP/IP sockets to be reused by a series of consecutive requests. This, combined with [HTTP persistent connections](http://en.wikipedia.org/wiki/HTTP_persistent_connection), enables opening a connection to a remote HTTP server and reusing it over longer periods of time. This extension is a simple fork of the actual [HHVM cURL extension](http://docs.hhvm.com/manual/en/ref.curl.php) and offers the same API with renamed function and constant names. Existing code needs to be changed in a trivial way in order to use PCURL, by renaming a couple of function calls and parameters.
